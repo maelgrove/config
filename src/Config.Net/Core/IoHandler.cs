@@ -11,6 +11,7 @@ namespace Config.Net.Core
       private readonly ValueHandler _valueHandler;
       private readonly TimeSpan _cacheInterval;
       private readonly ConcurrentDictionary<string, LazyVar<object>> _keyToValue = new ConcurrentDictionary<string, LazyVar<object>>();
+      private readonly ConcurrentDictionary<string, IConfigStore> _keyToConfigStore = new ConcurrentDictionary<string, IConfigStore>();
 
       public IoHandler(IEnumerable<IConfigStore> stores, ValueHandler valueHandler, TimeSpan cacheInterval)
       {
@@ -34,10 +35,14 @@ namespace Config.Net.Core
       public void Write(Type baseType, string path, object value)
       {
          string valueToWrite = _valueHandler.ConvertValue(baseType, value);
-
-         foreach (IConfigStore store in _stores.Where(s => s.CanWrite))
-         {
+         if (_keyToConfigStore.TryGetValue(path, out IConfigStore store))
             store.Write(path, valueToWrite);
+         else
+         {
+            if (ReadFirstValueByStore(path, out _, out store))
+            {
+               store.Write(path, valueToWrite);
+            }
          }
       }
 
@@ -50,19 +55,36 @@ namespace Config.Net.Core
 
       private string ReadFirstValue(string key)
       {
+         if (_keyToConfigStore.TryGetValue(key, out IConfigStore store))
+            return store.Read(key);
+         if (ReadFirstValueByStore(key, out string value, out store))
+         {
+            _keyToConfigStore.TryAdd(key, store);
+            return value;
+         }
+
+         return null;
+      }
+
+      private bool ReadFirstValueByStore(string key, out string value, out IConfigStore configStore)
+      {
+         configStore = null;
+         value       = null;
          foreach (IConfigStore store in _stores)
          {
             if (store.CanRead)
             {
-               string value = store.Read(key);
-
-               if (value != null) return value;
+               value = store.Read(key);
+               if (value != null)
+               {
+                  configStore = store;
+                  return true;
+               }
             }
          }
-         return null;
+
+         return false;
       }
-
-
 
    }
 }
