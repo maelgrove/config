@@ -23,6 +23,12 @@ namespace Config.Net.Tests
       {
          Assert.Throws<NotSupportedException>(() => new ConfigurationBuilder<IInvalidBasicType>().Build());
       }
+
+      [Fact]
+      public void Read_Configuration_In_Correct_Order()
+      {
+
+      }
    }
 
    public interface IInvalidBasicType
